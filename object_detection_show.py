@@ -1,18 +1,17 @@
 import numpy as np
 from PIL import Image
 import warnings
-
-import tensorflow as tf
-import time
 import cv2
+import tensorflow as tf
 
 
-PATH_TO_SAVED_MODEL="Object_Detection/exported-models/my_model1/saved_model"
+
+PATH_TO_SAVED_MODEL="/home/oyster/TensorFlow/workspace/oyster_flipper/exported-models/my_model/saved_model"
 print('Loading model...')# Load saved model and build the detection function
 detect_fn=tf.saved_model.load(PATH_TO_SAVED_MODEL)
 print('Done!')
 
-warnings.filterwarnings('ignore')
+#warnings.filterwarnings('ignore')
 
 # category_index=label_map_util.create_category_index_from_labelmap("/home/mattrix/oyster_flipper/Object_Detection/annotations/label_map.pbtxt",use_display_name=True)
 
@@ -24,8 +23,9 @@ for image_path in img:
   image_np=np.array(image)
   if image_np.shape[2] > 3:
     print("AHHHHH")
-    print(image_np.shape)
+    #print(image_np.shape)
     image_np = image_np[:,:,:3]
+    print(image_np)
 
   input_tensor=tf.convert_to_tensor(image_np)
   input_tensor=input_tensor[tf.newaxis, ...]
@@ -64,8 +64,8 @@ for image_path in img:
           width = 1280
           tl, br = ((int(x_min*width), int(y_min*height)), (int(x_max*width), int(y_max*height)))
           print(type(image_np))
-          cv2.rectangle(image_np, tl, br, (255,0,0), 3)
+          #cv2.rectangle(image_np, tl, br, (255,0,0), 3)
 
-  cv2.rectangle(image_np, (0, 100), (100,200), (0,255,0), 3)
-  cv2.imshow('nut',image_np)
-  cv2.waitKey(0)
+  #cv2.rectangle(image_np, (0, 100), (100,200), (0,255,0), 3)
+  #cv2.imshow('nut',image_np)
+  #cv2.waitKey(0)

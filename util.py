@@ -3,6 +3,7 @@
 import numpy as np
 import cv2
 import tensorflow as tf
+print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 
 
 def get_rectangles(mask, threshold_area):
@@ -59,11 +60,11 @@ def get_avg_depth(depth_img, pixels, low_thres=0, high_thres=1000):
     i = 0
     for x,y in pixels:
         depth = depth_img[x][y]
-        # print(depth)
+        print(depth)
         if depth > low_thres and depth < high_thres: 
             avg_depth += depth
             i += 1
-
+    print("NUM PIXELS: ", i)
     return avg_depth/i
 
 
@@ -105,35 +106,89 @@ def get_region_box(smask, area=100, side='bottom', image=None):
 
 def get_tf2_detect_fn(path):
     detect_fn=tf.saved_model.load(path)
+    print("LOADED MODEL!!!!!!!!!!")
     return detect_fn
 
 
-def detect_objects(detect_fn, image, width=1280, height=720, min_score_thres=0.5)
+def detect_objects(detect_fn, image, width=1280, height=720, min_score_thres=0.5):
     image_np = np.array(image)
+    if image_np.shape[2] > 3:
+        image_np = image_np[:,:,:3]
+        # print(image_np)
     input_tensor=tf.convert_to_tensor(image_np)
     input_tensor=input_tensor[tf.newaxis, ...]
-    detections=detect_fn(input_tensor)
-    print(type(detections))
 
-    # This is the way I'm getting my coordinates
+    detections=detect_fn(input_tensor)
+    
     boxes = detections['detection_boxes'][0]
-    # print(boxes)
-    # get all boxes from an array
-    max_boxes_to_draw = boxes.shape[0]
-    # get scores to get a threshold
     scores = detections['detection_scores'][0]
-    # print(scores)
-    # this is set as a default but feel free to adjust it to your needs
-  
-    # iterate over all objects found
     objects = []
-    for i in range(min(max_boxes_to_draw, boxes.shape[0])): 
-        if scores is None or scores[i] > min_score_thresh:
+    for i in range(boxes.shape[0]): 
+        if scores is None or scores[i].numpy() > min_score_thres:
+            # print("SCORE: ", scores[i].numpy())
             class_name = detections['detection_classes'][0][i].numpy()
 
-            y_min, x_min, y_max, x_max = boxes[i].numpy()
+            nut = boxes[i].numpy()
+
+            for i in range(len(nut)):
+                if nut[i] == np.nan:
+                    print("NUT")
+                    nut[i] = 0.0
+
+            y_min, x_min, y_max, x_max = nut
+
+            # print(nut)
             tl, br = ((int(x_min*width), int(y_min*height)), (int(x_max*width), int(y_max*height)))
             detection = {'class':class_name, 'box': (tl, br)}
             objects.append(detection)
 
     return objects
+
+
+def get_object_depth(bag_box, rgb_image, depth_image, lower, upper):
+    x1, y1 = bag_box[0]
+    x2, y2 = bag_box[1] 
+    crop_rgb   =   rgb_image[y1+int((y2-y1)/1.5):y2,x1:x2]
+    crop_depth = depth_image[y1+int((y2-y1)/1.5):y2,x1:x2]
+
+    mask = color_segmentation(crop_rgb, lower, upper)
+    pixels = get_mask_pixels(mask)
+
+    return get_avg_depth(crop_depth, pixels)
+
+
+def check_bag_flipper_depth(detect_fn, rgb_np, depth_np, black_lower, black_upper, gray_lower, gray_upper, dist_thres=10):
+    # print(rgb_np)
+    print(rgb_np.shape)
+
+    bag_box = None
+    flipper_box = None
+
+    objects = detect_objects(detect_fn, rgb_np)
+    print("OBJECTS DETECTED: ", len(objects))
+    for obj in objects:
+        if obj['class'] == 1.0:
+            if bag_box == None or bag_box[1][1] < obj['box'][1][1]:
+                bag_box = obj['box']
+                print("BAG DETECTED: ", bag_box)
+        elif obj['class'] == 2.0:
+            flipper_box = obj['box']
+            print("FLIPPER DETECTED: ", flipper_box)
+
+    # print('before: ', depth_np)
+
+    if bag_box and flipper_box:
+        # print('after: ', depth_np)
+        bag_depth = get_object_depth(bag_box, rgb_np, depth_np, black_lower, black_upper)
+        flipper_depth = get_object_depth(flipper_box, rgb_np, depth_np, gray_lower, gray_upper)
+        print("BAG_DEPTH: ", bag_depth)
+        print("FLIPPER_DEPTH: ", flipper_depth)
+        if bag_depth < flipper_depth and bag_depth+dist_thres > flipper_depth:
+            print("ALIGNED!")
+            return True
+        else:
+            if bag_depth < flipper_depth:
+                print("TOOO CLOSEEEEEE!!!")
+            else:
+                pirnt("TOOOO FARRRRRRR!!!")
+    return False

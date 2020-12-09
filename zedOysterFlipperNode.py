@@ -16,12 +16,12 @@ from cv2 import RANSAC
 
 
 class ZEDOysterFlipper():
-    RGB_CAMERA_TOPIC   = rospy.get_param("zed_depth_flipper/rgb_camera_topic", 'nut')
-    DEPTH_CAMERA_TOPIC = rospy.get_param("zed_depth_flipper/depth_camera_topic", 'nut')
+    RGB_CAMERA_TOPIC   = rospy.get_param("zed_depth_flipper/rgb_camera_topic", "/zed/zed_node/stereo/image_rect_color")
+    DEPTH_CAMERA_TOPIC = rospy.get_param("zed_depth_flipper/depth_camera_topic", '/zed/zed_node/depth/depth_registered')
     FLIP_START_TOPIC   = rospy.get_param("zed_depth_flipper/flip_topic", 'nut')
     TEST_CAMERA_TOPIC  = rospy.get_param("zed_depth_flipper/test_path_camera_topic", 'nut')
 
-    DETECTION_MODEL    = rospy.get_param("zed_depth_flipper/detection_model_path", 'nut')
+    DETECTION_MODEL    = rospy.get_param("zed_depth_flipper/detection_model_path", "/home/oyster/TensorFlow/workspace/oyster_flipper/exported-models/my_model1/saved_model")
 
     GRAY_LOWER_RANGE   = rospy.get_param("zed_depth_flipper/gray_lower_range", (0,5,0))
     GRAY_UPPER_RANGE   = rospy.get_param("zed_depth_flipper/gray_upper_range", (100,10,100))
@@ -33,29 +33,33 @@ class ZEDOysterFlipper():
     CROP_Y             = rospy.get_param("zed_depth_flipper/crop_y", (300,720))
     CROP_X             = rospy.get_param("zed_depth_flipper/crop_x", (400,1100))
 
-    # GRAY_LOWER_RANGE  = (0,5,0)
-    # GRAY_UPPER_RANGE  = (100,10,100)
-    # BLACK_LOWER_RANGE = (0,0,0)
-    # BLACK_UPPER_RANGE = (360,255,40)
+    GRAY_LOWER_RANGE  = (0,5,0)
+    GRAY_UPPER_RANGE  = (100,10,100)
+    BLACK_LOWER_RANGE = (0,0,0)
+    BLACK_UPPER_RANGE = (360,255,40)
     # AREA              = 100
 
 
     def __init__(self):
 
         self.bridge = CvBridge()
-        self.rgb_sub = message_filters.Subscriber(self.RGB_CAMERA_TOPIC, Image)
-        self.depth_sub = message_filters.Subscriber(self.DEPTH_CAMERA_TOPIC, Image)
+        rgb_sub = message_filters.Subscriber(self.RGB_CAMERA_TOPIC, Image)
+        depth_sub = message_filters.Subscriber(self.DEPTH_CAMERA_TOPIC, Image)
         self.flip_pub = rospy.Publisher(self.FLIP_START_TOPIC, UInt16, queue_size=5)
 
-        self.ts = message_filters.TimeSynchronizer([self.rgb_sub, self.depth_sub], 10)
+        self.ts = message_filters.TimeSynchronizer([rgb_sub, depth_sub], 10)
         self.ts.registerCallback(self.callback)
-        self.detect_fn = util.get_tf2_detect_fn(self.DETECTION_MODEL)
+        #self.detect_fn = util.get_tf2_detect_fn(self.DETECTION_MODEL)
         self.flipping = False
+        self.bridge = CvBridge()
 
 
-    def callback(self, data):
-        print(data)
-        rgb_image = None
+    def callback(self, rgb, depth):
+        rgb_image = None	
+        try:
+            rgb_image = self.bridge.imgmsg_to_cv2(rgb, "bgr8")
+        except CvBridgeError as e:
+            print(e)
         depth_image = None
 
         objects = util.detect_objects(self.detect_fn, rgb_image)
