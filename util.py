@@ -3,7 +3,13 @@
 import numpy as np
 import cv2
 import tensorflow as tf
-print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
+
+fx = 700.895
+fy = 700.895
+cx = 665.54
+cy = 371.155
+
+delta_z = 50
 
 
 def get_rectangles(mask, threshold_area):
@@ -55,17 +61,31 @@ def get_mask_pixels(mask):
     return np.transpose((mask>0).nonzero())
 
 
+def calculate_distance_from_disparity(Z, v, u):
+    X = (u-cx) * Z/fx
+    Y = (v-cy) * Z/fy
+
+    return (X**2 + Y**2 + Z**2)**0.5
+
+
+def calculate_x_distance(disparity, x, y)
+    distance_from_camera = calculate_distance_from_disparity(disparity, x, y)
+
+    theta = np.arccos(delta_z/distance_from_camera)
+
+    return np.sin(theta)*distance_from_camera
+
+
 def get_avg_depth(depth_img, pixels, low_thres=0, high_thres=1000):
-    avg_depth = 0
+    total_depth = 0
     i = 0
     for x,y in pixels:
-        depth = depth_img[x][y]
-        print(depth)
-        if depth > low_thres and depth < high_thres: 
-            avg_depth += depth
+        disparity = depth_img[x][y]
+        if disparity > low_thres and disparity < high_thres: 
+            total_depth += calculate_x_distance(disparity, x, y)
             i += 1
     print("NUM PIXELS: ", i)
-    return avg_depth/i
+    return total_depth/i
 
 
 def get_region_box(smask, area=100, side='bottom', image=None):
